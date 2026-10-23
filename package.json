@@ -1,6 +1,6 @@
 {
-  "name": "claude-sync",
-  "displayName": "Claude Sync",
+  "name": "claude-config-sync",
+  "displayName": "Claude Config Sync",
   "description": "Sincroniza com um clique a configuração do Claude Code (regras, memórias, skills, agents) entre computadores pelo GitHub, e as conversas pelo Google Drive. Juntar, nunca substituir.",
   "publisher": "Acalaes",
   "version": "0.1.0",

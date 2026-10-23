@@ -1,4 +1,4 @@
-# Claude Sync
+# Claude Config Sync
 
 Um botão na barra de status do VS Code que deixa o **Claude Code igual em vários computadores** (por exemplo, casa no Windows e trabalho no Linux).
 
