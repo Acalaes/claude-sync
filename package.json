@@ -1,0 +1,68 @@
+{
+  "name": "claude-sync",
+  "displayName": "Claude Sync",
+  "description": "Sincroniza com um clique a configuração do Claude Code (regras, memórias, skills, agents) entre computadores pelo GitHub, e as conversas pelo Google Drive. Juntar, nunca substituir.",
+  "publisher": "Acalaes",
+  "version": "0.1.0",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Acalaes/claude-sync"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["claude", "claude code", "sync", "sincronizar", "github"],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Claude Sync",
+      "properties": {
+        "claudeSync.motor": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Caminho do motor sincronizar.py. Vazio = ~/claude-config/scripts/sincronizar/sincronizar.py."
+        },
+        "claudeSync.python": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Comando do Python. Vazio = py no Windows, python3 no Linux/macOS."
+        },
+        "claudeSync.aoAbrir": {
+          "type": "boolean",
+          "default": true,
+          "description": "Sincronizar sozinho ao abrir o VS Code (aplica só o que é seguro)."
+        },
+        "claudeSync.aoFechar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Sincronizar sozinho ao fechar o VS Code."
+        },
+        "claudeSync.conversas": {
+          "type": "boolean",
+          "default": true,
+          "description": "Também copiar as conversas pelo Google Drive (rclone). Casa recebe as do trabalho; o trabalho nunca recebe as de casa."
+        },
+        "claudeSync.intervaloMin": {
+          "type": "number",
+          "default": 30,
+          "description": "De quantos em quantos minutos conferir se há novidades (só confere, não altera). 0 = nunca."
+        }
+      }
+    },
+    "commands": [
+      { "command": "claudeSync.sincronizar", "title": "Claude Sync: Sincronizar agora" },
+      { "command": "claudeSync.resolver", "title": "Claude Sync: Resolver pendências" },
+      { "command": "claudeSync.conversasAgora", "title": "Claude Sync: Copiar conversas agora" },
+      { "command": "claudeSync.perfil", "title": "Claude Sync: Este computador é casa ou trabalho?" },
+      { "command": "claudeSync.log", "title": "Claude Sync: Ver registro" }
+    ]
+  }
+}
