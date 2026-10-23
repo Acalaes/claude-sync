@@ -121,20 +121,28 @@ async function resolver() {
 
   const rec = (a) => (p.sugestao === a ? " (recomendado)" : "");
   const ops = p.item === "CLAUDE.md"
-    ? [{ label: "$(diff) Ver diferenças", a: "diff" },
-       { label: "$(comment-discussion) Mesclar com o Claude", detail: "Copia /sincronizar; cole no Claude Code para ele propor a versão mesclada.", a: "claude" },
+    ? [{ label: "$(git-merge) Mesclar agora (usa as suas regras)", detail: "Mostra só o que as regras ainda não cobrem; o que você decidir fica lembrado. Faz backup e dá para desfazer.", a: "mesclar" },
+       { label: "$(diff) Ver diferenças", a: "diff" },
+       { label: "$(comment-discussion) Mesclar com o Claude", detail: "Abre o Claude Code com /sincronizar já escrito (para casos que as regras não resolvem).", a: "claude" },
+       { label: "$(discard) Desfazer última mesclagem", detail: "Volta o CLAUDE.md ao que era antes (usa o backup).", a: "desfazer" },
        { label: "$(eye-closed) Ignorar esta versão da nuvem", a: "ignorar" }]
     : [p.aqui && { label: `$(cloud-upload) Enviar: este PC → nuvem${rec("enviar")}`, a: "enviar" },
        p.nuvem && { label: `$(cloud-download) Trazer: nuvem → este PC${rec("trazer")}`, a: "trazer" },
        { label: `$(eye-closed) Ignorar neste PC${rec("ignorar")}`, detail: "Nunca mais pergunta deste item aqui.", a: "ignorar" },
        { label: "$(diff) Ver diferenças", a: "diff" }].filter(Boolean);
-  ops.push({ label: "$(clock) Depois", a: "" });
+  ops.push({ label: "$(refresh) Atualizar agora", detail: "Confere de novo se ainda há pendências.", a: "atualizar" }, { label: "$(clock) Depois", a: "" });
   const e = await vscode.window.showQuickPick(ops, { placeHolder: `${p.item}: ${p.motivo}` });
   if (!e || !e.a) return;
   if (e.a === "diff") { await diferencas(p); return resolver(); }
+  if (e.a === "mesclar") return mesclarAgora();
+  if (e.a === "desfazer") return desfazerMescla();
+  if (e.a === "atualizar") return atualizar();
   if (e.a === "claude") {
-    await vscode.env.clipboard.writeText("/sincronizar");
-    vscode.window.showInformationMessage("Copiado: /sincronizar. Cole no Claude Code; ele mostra as linhas e só grava com a sua aprovação.");
+    await vscode.env.clipboard.writeText("/sincronizar");  // reserva: se o painel não preencher, é só colar
+    const ok = await vscode.env.openExternal(vscode.Uri.parse("vscode://anthropic.claude-code/open?prompt=" + encodeURIComponent("/sincronizar")));
+    vscode.window.showInformationMessage(ok
+      ? "Claude Code aberto com /sincronizar. Aperte Enter; ele mostra as linhas e só grava com a sua aprovação."
+      : "Copiado: /sincronizar. Cole no Claude Code; ele mostra as linhas e só grava com a sua aprovação.");
     return;
   }
   ocupado = true; render();
@@ -144,6 +152,67 @@ async function resolver() {
   await sincronizar({ soConferir: true, silencioso: true });
   if (ultimo && ultimo.pendencias && ultimo.pendencias.length) resolver();
   else vscode.window.setStatusBarMessage("Claude Sync: tudo igual", 4000);
+}
+
+const curto = (t, n = 170) => (t.length > n ? t.slice(0, n - 1) + "…" : t).replace(/\s*\n\s*/g, " ⏎ ");
+
+// Mescla o CLAUDE.md pelas regras (~/.claude/sync-regras.json): o motor só pergunta o que as regras e as decisões
+// já lembradas não cobrem. Marcado = trazer; sem marca = "não" (e nunca mais pergunta esse item).
+async function mesclarAgora() {
+  ocupado = true; render();
+  const pl = await rodar(["mesclar-plano"]);
+  ocupado = false; render();
+  if (pl.erro) { vscode.window.showWarningMessage(`Claude Sync: ${pl.erro}`); return; }
+  const resp = {};
+  if (pl.perguntas.length) {
+    const rotulo = (q) => q.tipo === "secao" ? `$(add) Seção nova: ${q.secao}`
+      : q.tipo === "variante" ? `$(replace-all) Versão diferente em «${q.secao}»` : `$(add) Item novo em «${q.secao}»`;
+    const itens = pl.perguntas.map((q) => ({ label: rotulo(q), detail: curto(q.texto) + (q.trocar ? `   ← troca o daqui: ${curto(q.trocar, 90)}` : ""), picked: true, q }));
+    const marcados = await vscode.window.showQuickPick(itens, {
+      canPickMany: true, matchOnDetail: true,
+      title: `CLAUDE.md: ${plural(pl.perguntas.length, "item novo", "itens novos")} da nuvem (${pl.automaticos.nunca} barrados pelas regras, ${pl.automaticos.lembradas} já decididos antes)`,
+      placeHolder: "Marque o que TRAZER para este PC. O que ficar sem marca vira “não” e não será perguntado de novo.",
+    });
+    if (!marcados) return;
+    const sim = new Set(marcados.map((m) => m.q.id));
+    for (const q of pl.perguntas) resp[q.id] = sim.has(q.id) ? "trazer" : "nao";
+  }
+  ocupado = true; render();
+  const r = await rodar(["mesclar-aplicar", JSON.stringify(resp)]);
+  ocupado = false;
+  await sincronizar({ soConferir: true, silencioso: true });
+  if (r.erro) { vscode.window.showWarningMessage(`Claude Sync: ${r.erro}`); return; }
+  const op = await vscode.window.showInformationMessage(
+    `CLAUDE.md mesclado: ${plural(r.trazidos, "item trazido", "itens trazidos")}. Backup feito.`, "Desfazer", "Abrir CLAUDE.md");
+  if (op === "Desfazer") await desfazerMescla();
+  else if (op) await vscode.window.showTextDocument(vscode.Uri.file(path.join(os.homedir(), ".claude", "CLAUDE.md")));
+}
+
+async function desfazerMescla() {
+  const r = await rodar(["desfazer-mescla"]);
+  await sincronizar({ soConferir: true, silencioso: true });
+  if (r.erro) vscode.window.showWarningMessage(`Claude Sync: ${r.erro}`);
+  else vscode.window.showInformationMessage("Mesclagem desfeita: CLAUDE.md voltou ao que era antes.");
+}
+
+async function atualizar() {
+  await sincronizar({ soConferir: true, silencioso: true });
+  const n = ultimo && ultimo.pendencias ? ultimo.pendencias.length : 0;
+  vscode.window.setStatusBarMessage(n ? `Claude Sync: ${plural(n, "pendência", "pendências")}` : "Claude Sync: tudo igual", 4000);
+}
+
+// A barra se atualiza quando o CLAUDE.md ou a lista de ignorados mudam (por você, pelo Claude ou pelo motor).
+// Não vigia sync-estado.json: o próprio "status" grava nele e causaria laço.
+function vigiar() {
+  let t, w;
+  try {
+    w = fs.watch(path.join(os.homedir(), ".claude"), (_, nome) => {
+      if (nome !== "CLAUDE.md" && nome !== "sync-ignorar.txt") return;
+      clearTimeout(t);
+      t = setTimeout(() => { if (!ocupado) sincronizar({ soConferir: true, silencioso: true }); }, 1500);
+    });
+  } catch (e) { out.appendLine("vigia desligada: " + e.message); }
+  return { dispose: () => { clearTimeout(t); if (w) w.close(); } };
 }
 
 async function perfil() {
@@ -178,6 +247,10 @@ function activate(context) {
     vscode.commands.registerCommand("claudeSync.conversasAgora", () => conversas(false)),
     vscode.commands.registerCommand("claudeSync.perfil", perfil),
     vscode.commands.registerCommand("claudeSync.log", () => out.show()),
+    vscode.commands.registerCommand("claudeSync.atualizar", atualizar),
+    vscode.commands.registerCommand("claudeSync.mesclar", mesclarAgora),
+    vscode.commands.registerCommand("claudeSync.desfazerMescla", desfazerMescla),
+    vigiar(),
     vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration("claudeSync.intervaloMin")) agendar(); }),
     { dispose: () => clearInterval(timer) });
   agendar();

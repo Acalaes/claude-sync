@@ -16,7 +16,7 @@ Princípio: **juntar, nunca substituir.** Antes de trocar qualquer arquivo, a ex
 | Arquivo novo só na nuvem | traz sozinho |
 | Mudou só de um lado desde a última vez | copia para o outro lado sozinho |
 | Mudou nos dois lados, ou foi apagado de um lado | vira **pendência**: você escolhe Enviar, Trazer, Ignorar ou Ver diferenças |
-| `CLAUDE.md` (instruções globais) | sempre pendência: o Claude propõe a mescla e só grava com a sua aprovação |
+| `CLAUDE.md` (instruções globais) | pendência até mesclar: "Mesclar agora" usa as suas regras (só pergunta o novo, lembra a resposta, faz backup, dá para desfazer); ou "Mesclar com o Claude" para casos difíceis |
 
 A barra mostra `✓ Claude: tudo igual` ou `⟳ Claude: 2 pendências`. Um clique sincroniza ou abre as pendências.
 Ela sincroniza sozinha ao **abrir** e ao **fechar** o VS Code e confere novidades a cada 30 minutos (só confere, não altera).
