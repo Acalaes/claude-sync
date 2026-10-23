@@ -3,7 +3,7 @@
   "displayName": "Claude Config Sync",
   "description": "Sincroniza com um clique a configuração do Claude Code (regras, memórias, skills, agents) entre computadores pelo GitHub, e as conversas pelo Google Drive. Juntar, nunca substituir.",
   "publisher": "Acalaes",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "icon": "media/icon.png",
   "repository": {

@@ -15,6 +15,17 @@ const motor = () => (cfg().get("motor") || path.join(os.homedir(), "claude-confi
 const python = () => cfg().get("python") || (process.platform === "win32" ? "py" : "python3");
 const hm = (d) => d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+const gb = (b) => (b >= 2 ** 30 ? (b / 2 ** 30).toFixed(1).replace(".", ",") + " GB" : (b / 2 ** 20).toFixed(0) + " MB");
+
+// Histórico diário do tamanho das conversas no Drive, gravado pelo motor após cada cópia.
+function drive() {
+  let h;
+  try { h = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".claude", "sync-drive-historico.json"), "utf8")); } catch (e) { return null; }
+  const d = Object.keys(h).sort();
+  if (!d.length) return null;
+  const dias = Math.round((new Date(d[d.length - 1]) - new Date(d[0])) / 86400000);
+  return { bytes: h[d[d.length - 1]], dias, ritmo: dias >= 1 ? (h[d[d.length - 1]] - h[d[0]]) / dias : null };
+}
 
 function rodar(args, timeoutMs = 180000) {
   return new Promise((resolve) => {
@@ -51,7 +62,11 @@ function render() {
     if (n) md.appendMarkdown(`\n\nPrecisa da sua decisão:\n${d.pendencias.map((x) => `- **${x.item}**: ${x.motivo}`).join("\n")}`);
   }
   if (conv) md.appendMarkdown(`\n\nConversas (Drive): ${conv.erro ? "⚠️ " + conv.erro
-    : `enviadas às ${hm(conv.quando)}${conv.novas !== undefined ? ` · do trabalho: ${conv.novas} novas, ${conv.atualizadas} atualizadas` : ""}`}`);
+    : `enviadas às ${hm(conv.quando)}${conv.novas !== undefined ? ` · do trabalho: ${conv.novas} novas, ${conv.atualizadas} atualizadas` : ""}${conv.trabalho ? ` · ${conv.trabalho}` : ""}`}`);
+  const dr = drive();
+  if (dr) md.appendMarkdown(`\n\nEspaço no Drive: **${gb(dr.bytes)}**${dr.ritmo !== null
+    ? ` · cresce ~${(dr.ritmo / 2 ** 20).toFixed(0)} MB/dia · em 1 ano: **~${gb(dr.bytes + dr.ritmo * 365)}** (medido em ${dr.dias} dia${dr.dias === 1 ? "" : "s"})`
+    : " · projeção de 1 ano a partir de amanhã (precisa de 2 dias medidos)"}`);
   if (convRodando) md.appendMarkdown("\n\nCopiando conversas…");
   md.appendMarkdown(`\n\n${n ? "Clique para resolver." : "Clique para sincronizar agora."}`);
   item.tooltip = md;
